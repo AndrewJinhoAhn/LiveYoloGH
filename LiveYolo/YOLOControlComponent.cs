@@ -16,6 +16,11 @@ namespace Appendage.YOLOcam
         };
 
         private bool _wasActive = false;
+        private bool _setupRunning = false;
+
+        // Self-contained backend lives here (downloaded on first run, never bundled).
+        private static string BaseDir =>
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LiveYolo");
 
         public YOLOControlComponent()
           : base("YOLO Control", "YOLOctrl",
@@ -78,11 +83,92 @@ namespace Appendage.YOLOcam
         {
             KillExistingBackend();
 
+            string pythonPath = Path.Combine(BaseDir, "python", "python.exe");
+            string ready = Path.Combine(BaseDir, ".ready");
+
+            // First run (or incomplete setup): bootstrap the backend, then launch.
+            if (!File.Exists(pythonPath) || !File.Exists(ready))
+            {
+                RunSetupThenStart();
+                return;
+            }
+
+            LaunchBackend();
+        }
+
+        // Runs setup.ps1 (shipped next to the .gha) on a background thread so Rhino's
+        // UI stays responsive. Downloads a self-contained Python + dependencies.
+        private void RunSetupThenStart()
+        {
+            if (_setupRunning) return;
+            _setupRunning = true;
+
             string ghaDir = Path.GetDirectoryName(
                 System.Reflection.Assembly.GetExecutingAssembly().Location);
-            string backendDir = Path.Combine(ghaDir, "backend");
+            string setupScript = Path.Combine(ghaDir, "setup.ps1");
+
+            if (!File.Exists(setupScript))
+            {
+                _setupRunning = false;
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error,
+                    "setup.ps1 not found next to the component.");
+                return;
+            }
+
+            AddRuntimeMessage(GH_RuntimeMessageLevel.Remark,
+                "First-time setup running (one-time). Downloading Python and dependencies; see the Rhino command line for progress.");
+            Rhino.RhinoApp.WriteLine("[LiveYolo] First-time setup started (one-time, may take several minutes)...");
+
+            Task.Run(() =>
+            {
+                int exitCode = -1;
+                try
+                {
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = "powershell.exe",
+                        Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{setupScript}\" -GhaDir \"{ghaDir}\" -Base \"{BaseDir}\"",
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                    };
+
+                    var p = Process.Start(psi);
+                    p.OutputDataReceived += (s, e) => { if (e.Data != null) Rhino.RhinoApp.WriteLine("[LiveYolo] " + e.Data); };
+                    p.ErrorDataReceived += (s, e) => { if (e.Data != null) Rhino.RhinoApp.WriteLine("[LiveYolo] " + e.Data); };
+                    p.BeginOutputReadLine();
+                    p.BeginErrorReadLine();
+                    p.WaitForExit();
+                    exitCode = p.ExitCode;
+                }
+                catch (Exception ex)
+                {
+                    Rhino.RhinoApp.WriteLine("[LiveYolo] setup error: " + ex.Message);
+                }
+                finally
+                {
+                    _setupRunning = false;
+                }
+
+                string pythonPath = Path.Combine(BaseDir, "python", "python.exe");
+                if (exitCode == 0 && File.Exists(pythonPath))
+                {
+                    Rhino.RhinoApp.WriteLine("[LiveYolo] Setup complete.");
+                    Rhino.RhinoApp.InvokeOnUiThread(new Action(() => { if (_wasActive) LaunchBackend(); }));
+                }
+                else
+                {
+                    Rhino.RhinoApp.WriteLine("[LiveYolo] Setup failed (exit " + exitCode + "). Toggle Active off and on to retry.");
+                }
+            });
+        }
+
+        private void LaunchBackend()
+        {
+            string backendDir = Path.Combine(BaseDir, "backend");
             string scriptPath = Path.Combine(backendDir, "backend.py");
-            string pythonPath = Path.Combine(backendDir, "venv", "Scripts", "python.exe");
+            string pythonPath = Path.Combine(BaseDir, "python", "python.exe");
 
             if (!File.Exists(pythonPath))
             {

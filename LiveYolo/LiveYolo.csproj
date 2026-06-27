@@ -1,5 +1,5 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-	
+<Project Sdk="Microsoft.NET.Sdk">
+
   <PropertyGroup>
     <!-- Select the framework(s) you wish to target.
         Rhino 6: net45
@@ -12,8 +12,11 @@
     <TargetExt>.gha</TargetExt>
     <NoWarn>NU1701;NETSDK1086</NoWarn>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!-- Never auto-include a stray backend/ folder under the project; the backend
+         is handled explicitly (downloaded on first run, see CopyDeployFiles). -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);backend\**</DefaultItemExcludes>
   </PropertyGroup>
-  
+
   <PropertyGroup>
     <!-- Specifies information for Assembly and Yak -->
     <Version>1.0</Version>
@@ -21,13 +24,13 @@
     <Company>Appendage.YOLOcam Authors</Company>
     <Description>Description of Appendage.YOLOcam</Description>
   </PropertyGroup>
-  
+
   <ItemGroup>
     <PackageReference Include="Grasshopper" Version="8.0.23304.9001" ExcludeAssets="runtime" />
     <Reference Condition="$(TargetFramework.StartsWith('net4'))" Include="System.Net.Http" />
     <PackageReference Include="System.Text.Json" Version="8.0.5" ExcludeAssets="runtime" />
   </ItemGroup>
-  
+
   <!-- For Windows only builds -->
   <PropertyGroup Condition="$(TargetFramework.Contains('-windows')) or $(TargetFramework.StartsWith('net4'))">
     <UseWindowsForms>true</UseWindowsForms>
@@ -37,20 +40,26 @@
   <ItemGroup Condition="!($(TargetFramework.Contains('-windows')) or $(TargetFramework.StartsWith('net4')))">
     <!-- Rhino 8.11 and later you can use this -->
     <!-- <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" /> -->
-    
+
     <!-- Rhino 8.10 and earlier -->
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net48" Version="1.0.3" ExcludeAssets="all" GeneratePathProperty="true" />
     <Reference Include="$(PkgMicrosoft_NETFramework_ReferenceAssemblies_net48)\build\.NETFramework\v4.8\System.Windows.Forms.dll" Private="False" />
     <PackageReference Include="System.Drawing.Common" Version="7.0.0" ExcludeAssets="runtime" />
   </ItemGroup>
 
-    <Target Name="CopyBackend" AfterTargets="Build">
-	    <ItemGroup>
-		    <BackendFiles Include="$(MSBuildProjectDirectory)\..\backend\**\*" />
-	    </ItemGroup>
-	    <Copy SourceFiles="@(BackendFiles)"
-			    DestinationFiles="@(BackendFiles->'$(OutDir)backend\%(RecursiveDir)%(Filename)%(Extension)')"
-			    SkipUnchangedFiles="true" />
-    </Target>
+  <!-- Ship only the lightweight deploy files next to the .gha.
+       The Python runtime + dependencies (torch, ultralytics, etc.) are NOT bundled;
+       they are downloaded on first run by setup.ps1 into %LOCALAPPDATA%\LiveYolo,
+       so the package stays small. -->
+  <Target Name="CopyDeployFiles" AfterTargets="Build">
+    <ItemGroup>
+      <DeployFiles Include="$(MSBuildProjectDirectory)\..\backend\backend.py" />
+      <DeployFiles Include="$(MSBuildProjectDirectory)\..\backend\requirements.txt" />
+      <DeployFiles Include="$(MSBuildProjectDirectory)\..\backend\setup.ps1" />
+    </ItemGroup>
+    <Copy SourceFiles="@(DeployFiles)"
+          DestinationFolder="$(OutDir)"
+          SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>

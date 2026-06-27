@@ -1,0 +1,7 @@
+# LiveYolo Python backend dependencies.
+# torch / torchvision are NOT listed here: setup.ps1 installs them per-GPU
+# (CUDA build for NVIDIA, CPU build otherwise) before installing these.
+ultralytics==8.4.80
+fastapi==0.138.1
+uvicorn==0.49.0
+opencv-python==4.13.0.92
