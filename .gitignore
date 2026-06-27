@@ -1,0 +1,22 @@
+# .NET build outputs
+bin/
+obj/
+*.user
+
+# Visual Studio
+.vs/
+*.suo
+*.rsuser
+
+# Python
+backend/venv/
+__pycache__/
+*.pyc
+*.pt
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backups
+*.bak
