@@ -7,13 +7,13 @@ import torch
 
 app = FastAPI()
 
-# --- °øÀ¯ »óÅÂ ---
+# --- ê³µìœ  ìƒíƒœ ---
 _state = {"dets": [], "running": False, "width": 0, "height": 0, "device": "unknown"}
 _lock = threading.Lock()
 _thread = None
 _stop_event = threading.Event()
 
-# --- Ä¸Ã³ + ÃßÀû ·çÇÁ ---
+# --- ìº¡ì²˜ + ì¶”ì  ë£¨í”„ ---
 def capture_loop():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     with _lock:
@@ -36,8 +36,10 @@ def capture_loop():
                 x1, y1, x2, y2 = b.xyxy[0].tolist()
                 dets.append({
                     "tag":  model.names[int(b.cls)],
-                    "cx":   (x1 + x2) / 2,
-                    "cy":   (y1 + y2) / 2,
+                    "x1":   x1,
+                    "y1":   y1,
+                    "x2":   x2,
+                    "y2":   y2,
                     "id":   int(b.id) if b.id is not None else -1,
                     "conf": float(b.conf),
                 })
@@ -49,7 +51,7 @@ def capture_loop():
 
     cap.release()
 
-# --- ¿£µåÆ÷ÀÎÆ® ---
+# --- ì—”ë“œí¬ì¸íŠ¸ ---
 @app.post("/start")
 def start():
     global _thread, _stop_event
@@ -83,6 +85,6 @@ def status():
     with _lock:
         return {"running": _state["running"], "device": _state["device"]}
 
-# --- ÁøÀÔÁ¡ ---
+# --- ì§„ì…ì  ---
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)

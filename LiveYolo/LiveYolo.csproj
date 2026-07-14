@@ -1,65 +1,54 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- Select the framework(s) you wish to target.
-        Rhino 6: net45
-        Rhino 7: net48
-        Rhino 8 Windows: net48, net7.0, net7.0-windows, net7.0-windows10.0.22000.0, etc
-        Rhino 8 Mac: net7.0, net7.0-macos, net7.0-macos12.0, etc
-    -->
-    <TargetFrameworks>net7.0-windows;net7.0;net48</TargetFrameworks>
+    <!-- Windows-only: the YOLO backend (Python + CUDA, downloaded on first run)
+         is Windows-only, so the plugin targets Rhino 8 Windows. -->
+    <TargetFramework>net7.0-windows</TargetFramework>
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <TargetExt>.gha</TargetExt>
     <NoWarn>NU1701;NETSDK1086</NoWarn>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <UseWindowsForms>true</UseWindowsForms>
     <!-- Never auto-include a stray backend/ folder under the project; the backend
          is handled explicitly (downloaded on first run, see CopyDeployFiles). -->
     <DefaultItemExcludes>$(DefaultItemExcludes);backend\**</DefaultItemExcludes>
+    <RootNamespace>LiveYOLO</RootNamespace>
   </PropertyGroup>
 
   <PropertyGroup>
     <!-- Specifies information for Assembly and Yak -->
     <Version>1.0</Version>
-    <Title>Appendage.YOLOcam</Title>
-    <Company>Appendage.YOLOcam Authors</Company>
-    <Description>Description of Appendage.YOLOcam</Description>
+    <Title>LiveYOLO</Title>
+    <Company>LiveYOLO Authors</Company>
+    <Description>Real-time YOLO webcam object detection for Rhino Grasshopper (Windows).</Description>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Grasshopper" Version="8.0.23304.9001" ExcludeAssets="runtime" />
-    <Reference Condition="$(TargetFramework.StartsWith('net4'))" Include="System.Net.Http" />
-    <PackageReference Include="System.Text.Json" Version="8.0.5" ExcludeAssets="runtime" />
+    <None Remove="Resources\YoloDevice.png" />
+    <None Remove="Resources\YoloFetch.png" />
   </ItemGroup>
 
-  <!-- For Windows only builds -->
-  <PropertyGroup Condition="$(TargetFramework.Contains('-windows')) or $(TargetFramework.StartsWith('net4'))">
-    <UseWindowsForms>true</UseWindowsForms>
-  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\YoloDevice.png" />
+    <EmbeddedResource Include="Resources\YoloFetch.png" />
+  </ItemGroup>
 
-  <!-- Reference WinForms for .NET 7.0 on macOS -->
-  <ItemGroup Condition="!($(TargetFramework.Contains('-windows')) or $(TargetFramework.StartsWith('net4')))">
-    <!-- Rhino 8.11 and later you can use this -->
-    <!-- <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" /> -->
-
-    <!-- Rhino 8.10 and earlier -->
-    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net48" Version="1.0.3" ExcludeAssets="all" GeneratePathProperty="true" />
-    <Reference Include="$(PkgMicrosoft_NETFramework_ReferenceAssemblies_net48)\build\.NETFramework\v4.8\System.Windows.Forms.dll" Private="False" />
-    <PackageReference Include="System.Drawing.Common" Version="7.0.0" ExcludeAssets="runtime" />
+  <ItemGroup>
+    <PackageReference Include="Grasshopper" Version="8.0.23304.9001" ExcludeAssets="runtime" />
+    <PackageReference Include="System.Text.Json" Version="8.0.5" ExcludeAssets="runtime" />
   </ItemGroup>
 
   <!-- Ship only the lightweight deploy files next to the .gha.
        The Python runtime + dependencies (torch, ultralytics, etc.) are NOT bundled;
        they are downloaded on first run by setup.ps1 into %LOCALAPPDATA%\LiveYolo,
        so the package stays small. -->
-  <Target Name="CopyDeployFiles" AfterTargets="Build">
+  <Target Name="CopyDeployFiles" AfterTargets="Build" Condition="'$(TargetFramework)' != ''">
     <ItemGroup>
       <DeployFiles Include="$(MSBuildProjectDirectory)\..\backend\backend.py" />
       <DeployFiles Include="$(MSBuildProjectDirectory)\..\backend\requirements.txt" />
       <DeployFiles Include="$(MSBuildProjectDirectory)\..\backend\setup.ps1" />
     </ItemGroup>
-    <Copy SourceFiles="@(DeployFiles)"
-          DestinationFolder="$(OutDir)"
-          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(DeployFiles)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
   </Target>
 
 </Project>

@@ -3,9 +3,9 @@ using Grasshopper.Kernel;
 using System;
 using System.Drawing;
 
-namespace Appendage.YOLOcam
+namespace LiveYOLO
 {
-    public class Appendage_YOLOcamInfo : GH_AssemblyInfo
+    public class LiveYOLOInfo : GH_AssemblyInfo
     {
         public override string Name => "LiveYoloGH";
 

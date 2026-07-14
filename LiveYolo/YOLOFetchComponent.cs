@@ -6,7 +6,7 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
 
-namespace Appendage.YOLOcam
+namespace LiveYOLO
 {
     public class YOLOFetchComponent : GH_Component
     {
@@ -15,7 +15,7 @@ namespace Appendage.YOLOcam
             Timeout = TimeSpan.FromMilliseconds(80)
         };
 
-        private List<Point3d> _centers = new List<Point3d>();
+        private List<Rectangle3d> _boxes = new List<Rectangle3d>();
         private List<string> _tags = new List<string>();
         private List<int> _ids = new List<int>();
         private List<double> _confs = new List<double>();
@@ -37,7 +37,7 @@ namespace Appendage.YOLOcam
 
         protected override void RegisterOutputParams(GH_OutputParamManager pManager)
         {
-            pManager.AddPointParameter("Centers", "C", "Bounding box centers (pixel coords, origin bottom-left)", GH_ParamAccess.list);
+            pManager.AddRectangleParameter("Boxes", "B", "Bounding box rectangles (pixel coords, origin bottom-left)", GH_ParamAccess.list);
             pManager.AddTextParameter("Tags", "T", "Class labels", GH_ParamAccess.list);
             pManager.AddIntegerParameter("IDs", "ID", "Track IDs", GH_ParamAccess.list);
             pManager.AddNumberParameter("Confidence", "Conf", "Detection confidence", GH_ParamAccess.list);
@@ -54,7 +54,7 @@ namespace Appendage.YOLOcam
 
             if (!trigger)
             {
-                DA.SetDataList(0, _centers);
+                DA.SetDataList(0, _boxes);
                 DA.SetDataList(1, _tags);
                 DA.SetDataList(2, _ids);
                 DA.SetDataList(3, _confs);
@@ -72,11 +72,14 @@ namespace Appendage.YOLOcam
 
                 _width = response.width;
                 _height = response.height;
-                _centers.Clear(); _tags.Clear(); _ids.Clear(); _confs.Clear();
+                _boxes.Clear(); _tags.Clear(); _ids.Clear(); _confs.Clear();
 
                 foreach (var d in response.dets)
                 {
-                    _centers.Add(new Point3d(d.cx, _height - d.cy, 0));
+                    // 픽셀 좌표(원점 좌상단, y 아래로) -> Rhino XY(원점 좌하단, y 위로): y 뒤집기
+                    var cornerA = new Point3d(d.x1, _height - d.y1, 0);
+                    var cornerB = new Point3d(d.x2, _height - d.y2, 0);
+                    _boxes.Add(new Rectangle3d(Plane.WorldXY, cornerA, cornerB));
                     _tags.Add(d.tag);
                     _ids.Add(d.id);
                     _confs.Add(d.conf);
@@ -84,14 +87,14 @@ namespace Appendage.YOLOcam
             }
             catch (TaskCanceledException)
             {
-                // 타임아웃 — 이전 결과 유지
+                // 타임아웃 - 이전 결과 유지
             }
             catch (Exception ex)
             {
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, ex.Message);
             }
 
-            DA.SetDataList(0, _centers);
+            DA.SetDataList(0, _boxes);
             DA.SetDataList(1, _tags);
             DA.SetDataList(2, _ids);
             DA.SetDataList(3, _confs);
@@ -99,7 +102,7 @@ namespace Appendage.YOLOcam
             DA.SetData(5, _height);
         }
 
-        protected override System.Drawing.Bitmap Icon => null;
+        protected override System.Drawing.Bitmap Icon => IconLoader.Get("YoloFetch.png");
 
         public override Guid ComponentGuid => new Guid("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
     }
@@ -114,8 +117,10 @@ namespace Appendage.YOLOcam
     internal class Detection
     {
         public string tag { get; set; }
-        public double cx { get; set; }
-        public double cy { get; set; }
+        public double x1 { get; set; }
+        public double y1 { get; set; }
+        public double x2 { get; set; }
+        public double y2 { get; set; }
         public int id { get; set; }
         public double conf { get; set; }
     }

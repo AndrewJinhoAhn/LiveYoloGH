@@ -5,7 +5,7 @@ using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
 
-namespace Appendage.YOLOcam
+namespace LiveYOLO
 {
     public class YOLOControlComponent : GH_Component
     {
@@ -246,7 +246,7 @@ namespace Appendage.YOLOcam
             base.RemovedFromDocument(document);
         }
 
-        protected override System.Drawing.Bitmap Icon => null;
+        protected override System.Drawing.Bitmap Icon =>IconLoader.Get("YoloDevice.png");
 
         public override Guid ComponentGuid => new Guid("90e76670-deae-4ec1-a1a4-40ca9067efa7");
     }
