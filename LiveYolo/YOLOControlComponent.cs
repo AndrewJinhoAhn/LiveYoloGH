@@ -44,9 +44,10 @@ namespace LiveYOLO
 
         protected override void SolveInstance(IGH_DataAccess DA)
         {
+            
             bool active = false;
             DA.GetData(0, ref active);
-
+            //stop backend if active is false and backend is running, start backend if active is true and backend is not running
             if (active && !_wasActive)
             {
                 StartBackend();
@@ -84,46 +85,46 @@ namespace LiveYOLO
             KillExistingBackend();
 
             string pythonPath = Path.Combine(BaseDir, "python", "python.exe");
-            string ready = Path.Combine(BaseDir, ".ready");
+            string ready = Path.Combine(BaseDir, ".ready"); //setup completion marker file
 
-            // First run (or incomplete setup): bootstrap the backend, then launch.
-            if (!File.Exists(pythonPath) || !File.Exists(ready))
+            // First run (or if setup is incomplete): bootstrap the backend, then launch.
+            if (!File.Exists(pythonPath) || !File.Exists(ready)) 
             {
                 RunSetupThenStart();
-                return;
+                return; //LaunchBackend() will be called inside RunSetupThenStart() after background setup is complete.
             }
 
             LaunchBackend();
         }
 
-        // Runs setup.ps1 (shipped next to the .gha) on a background thread so Rhino's
-        // UI stays responsive. Downloads a self-contained Python + dependencies.
+        // Runs setup script(setup.ps1) in a background thread so that the Grasshopper UI remains responsive.
         private void RunSetupThenStart()
         {
             if (_setupRunning) return;
             _setupRunning = true;
 
             string ghaDir = Path.GetDirectoryName(
-                System.Reflection.Assembly.GetExecutingAssembly().Location);
+                System.Reflection.Assembly.GetExecutingAssembly().Location); //get the directory of the liveyolo.gha file
             string setupScript = Path.Combine(ghaDir, "setup.ps1");
 
             if (!File.Exists(setupScript))
             {
                 _setupRunning = false;
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error,
-                    "setup.ps1 not found next to the component.");
+                    "Dependency setup wizard is missing.");
                 return;
             }
 
             AddRuntimeMessage(GH_RuntimeMessageLevel.Remark,
-                "First-time setup running (one-time). Downloading Python and dependencies; see the Rhino command line for progress.");
-            Rhino.RhinoApp.WriteLine("[LiveYolo] First-time setup started (one-time, may take several minutes)...");
+                "First time dependency setup is in progress. See the Rhino command line for progress.");
+            Rhino.RhinoApp.WriteLine("First-time LiveYolo dependency setup is in progress. This may take several minutes. Do not intervene!");
 
             Task.Run(() =>
             {
                 int exitCode = -1;
                 try
                 {
+                    // bypass execution policy and run the setup script
                     var psi = new ProcessStartInfo
                     {
                         FileName = "powershell.exe",
@@ -133,7 +134,7 @@ namespace LiveYOLO
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
                     };
-
+                    // Start the process and display output
                     var p = Process.Start(psi);
                     p.OutputDataReceived += (s, e) => { if (e.Data != null) Rhino.RhinoApp.WriteLine("[LiveYolo] " + e.Data); };
                     p.ErrorDataReceived += (s, e) => { if (e.Data != null) Rhino.RhinoApp.WriteLine("[LiveYolo] " + e.Data); };
@@ -186,7 +187,7 @@ namespace LiveYOLO
                 CreateNoWindow = true,
             };
 
-            _backendProcess = Process.Start(psi);
+            _backendProcess = Process.Start(psi); //start backend server
 
             Task.Run(() =>
             {
@@ -205,7 +206,7 @@ namespace LiveYOLO
                     catch { }
                     System.Threading.Thread.Sleep(1000);
                 }
-                Rhino.RhinoApp.WriteLine("YOLO backend failed to start within 30 seconds.");
+                Rhino.RhinoApp.WriteLine("YOLO server is not responding.");
             });
         }
 
@@ -216,7 +217,17 @@ namespace LiveYOLO
                 var processes = Process.GetProcessesByName("python");
                 foreach (var p in processes)
                 {
-                    try { p.Kill(); p.WaitForExit(1000); } catch { }
+                    try
+                    {
+                        // Check if the process is running from our BaseDir
+                        string path = p.MainModule?.FileName;
+                        if (path != null && path.StartsWith(BaseDir, StringComparison.OrdinalIgnoreCase))
+                        {
+                            p.Kill();
+                            p.WaitForExit(1000);
+                        }
+                    }
+                    catch { }
                 }
             }
             catch { }

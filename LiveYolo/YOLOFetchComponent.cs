@@ -76,7 +76,7 @@ namespace LiveYOLO
 
                 foreach (var d in response.dets)
                 {
-                    // 픽셀 좌표(원점 좌상단, y 아래로) -> Rhino XY(원점 좌하단, y 위로): y 뒤집기
+                    // Convert to Rhino coordinate system (origin bottom-left)
                     var cornerA = new Point3d(d.x1, _height - d.y1, 0);
                     var cornerB = new Point3d(d.x2, _height - d.y2, 0);
                     _boxes.Add(new Rectangle3d(Plane.WorldXY, cornerA, cornerB));
@@ -87,7 +87,7 @@ namespace LiveYOLO
             }
             catch (TaskCanceledException)
             {
-                // 타임아웃 - 이전 결과 유지
+                // Timeout occurred, likely no detections available
             }
             catch (Exception ex)
             {

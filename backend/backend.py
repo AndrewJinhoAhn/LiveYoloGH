@@ -7,30 +7,30 @@ import torch
 
 app = FastAPI()
 
-# --- 공유 상태 ---
+#shared status
 _state = {"dets": [], "running": False, "width": 0, "height": 0, "device": "unknown"}
 _lock = threading.Lock()
 _thread = None
 _stop_event = threading.Event()
 
-# --- 캡처 + 추적 루프 ---
+#capture and update
 def capture_loop():
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    with _lock:
+    device = "cuda" if torch.cuda.is_available() else "cpu" #force CUDA if available
+    with _lock: #lock thread when accessing _state
         _state["device"] = device
     model = YOLO("yolo26n.pt")
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(0) #use primary cam #consider user camera selection in the next release
 
     while not _stop_event.is_set():
         ok, frame = cap.read()
         if not ok:
             continue
 
-        h, w = frame.shape[:2]
-        results = model.track(frame, persist=True, imgsz=640, verbose=False, device=device)
+        h, w = frame.shape[:2] #actual camera frame size
+        results = model.track(frame, persist=True, imgsz=640, verbose=False, device=device) #consider customizable imgsz in the next release
         r = results[0]
 
-        dets = []
+        dets = [] #detection results
         if r.boxes is not None:
             for b in r.boxes:
                 x1, y1, x2, y2 = b.xyxy[0].tolist()
@@ -51,7 +51,7 @@ def capture_loop():
 
     cap.release()
 
-# --- 엔드포인트 ---
+#routing
 @app.post("/start")
 def start():
     global _thread, _stop_event
@@ -59,7 +59,7 @@ def start():
         if _state["running"]:
             return {"status": "already running"}
         _stop_event.clear()
-        _thread = threading.Thread(target=capture_loop, daemon=True)
+        _thread = threading.Thread(target=capture_loop, daemon=True) #scrap capture_loop if program ends
         _thread.start()
         _state["running"] = True
     return {"status": "started"}
@@ -85,6 +85,6 @@ def status():
     with _lock:
         return {"running": _state["running"], "device": _state["device"]}
 
-# --- 진입점 ---
+#entry point action
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)
